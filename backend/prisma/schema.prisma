@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Dev: sqlite. For production, change to "postgresql" and point
+  // DATABASE_URL at your Postgres instance — no schema changes needed.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  name          String
+  storageQuota  Int      @default(10737418240) // bytes; Int is 64-bit in SQLite via Prisma
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  files   File[]
+  folders Folder[]
+}
+
+model Folder {
+  id        String    @id @default(cuid())
+  ownerId   String
+  parentId  String?
+  name      String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  owner    User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  parent   Folder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children Folder[] @relation("FolderTree")
+  files    File[]
+
+  @@index([ownerId, parentId])
+  @@index([ownerId, deletedAt])
+}
+
+model File {
+  id           String    @id @default(cuid())
+  ownerId      String
+  folderId     String?
+  originalName String
+  storedName   String
+  mimeType     String
+  size         Int
+  storagePath  String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  owner  User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  folder Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  shares Share[]
+
+  @@index([ownerId, folderId])
+  @@index([ownerId, deletedAt])
+  @@index([originalName])
+}
+
+model Share {
+  id           String    @id @default(cuid())
+  fileId       String
+  token        String    @unique
+  passwordHash String?
+  expiresAt    DateTime?
+  permission   String    @default("view") // "view" | "download"
+  disabled     Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+
+  file File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+}
